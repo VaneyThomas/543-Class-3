@@ -1,0 +1,124 @@
+
+```{r getData, eval=FALSE}
+# clean memory
+rm(list = ls()) 
+# link
+link='https://github.com/EvansDataScience/data/raw/master/eduwa.rda'
+
+#getting the data TABLE from the file in the cloud:
+load(file=url(link))
+```
+
+As we have many values, it is difficult to share a clear insight. However, we could try a different idea:
+
+```{r, eval=FALSE}
+# sum of reduced lunches given per county
+CountyCount_LR=aggregate(data=eduwa,
+                         Reduced.Lunch~County,
+                         FUN=sum)
+#see
+CountyCount_LR
+```
+
+Now you have much less cases, just 39. Let's order by count in decreasing order:
+
+```{r, eval=FALSE}
+# order and minus (-) for decreasing
+CountyCount_LR=CountyCount_LR[order(-CountyCount_LR$Reduced.Lunch),]
+head(CountyCount_LR,10)
+```
+
+Let's add the percent, and cummulative percent and cummulative count:
+
+```{r, eval=FALSE}
+CountyCount_LR$Percent=CountyCount_LR$Reduced.Lunch/sum(CountyCount_LR$Reduced.Lunch)
+CountyCount_LR$PercentCum=cumsum(CountyCount_LR$Percent)
+CountyCount_LR$Reduced.Lunch.Cum=cumsum(CountyCount_LR$Reduced.Lunch)
+# see some:
+head(CountyCount_LR,20)
+```
+
+
+
+Let's plot the cumulative count as a barplot:
+
+```{r, eval=FALSE}
+
+base2=ggplot(data=CountyCount_LR,
+             aes(x=County,Reduced.Lunch.Cum)) + theme_classic()
+base3=base2+scale_x_discrete()
+bar2=base3  +geom_bar(stat = "identity")
+bar2=bar2 + coord_flip() 
+bar2
+```
+
+The previous plot is NOT informative, this is better:
+
+```{r, eval=FALSE}
+# altering previous base3
+base3=base2+scale_x_discrete(limits=CountyCount_LR$County)
+bar2=base3  +geom_bar(stat = "identity")
+bar2=bar2 + coord_flip() 
+bar2
+
+```
+
+We could redo **bar2** by using the other columns to show the Pareto principle:
+```{r, eval=FALSE}
+bar2=base3  +geom_bar(stat = "identity",color='grey90',
+                      aes(fill=PercentCum<0.8),
+                      show.legend = F)
+bar2=bar2 + coord_flip()
+
+bar2
+```
+
+Above, we just altered the _border_ of the bars (color); and we told ggplot to fill the bars _conditionally_. The default fill color was chosen. If you want to customize the fill color, do this:
+
+```{r, eval=FALSE}
+# I only need one fill color, that is why I put 'NA":
+bar2=bar2 +scale_fill_manual(values=c(NA,"grey90"))
+bar2
+```
+
+The last version tries to highlight some counties. This last step could help more:
+
+```{r, eval=FALSE}
+# this is a condition outside ggplot.
+# it says what counties add to 80%
+counties80=CountyCount_LR[CountyCount_LR$PercentCum<0.8,"County"]
+
+# now we use that here, to alter the face of text:
+bar2=bar2 + theme(axis.text.y = element_text(face=ifelse(CountyCount_LR$County%in%counties80,"bold","plain"),size=9))
+bar2
+```
+
+The last plot shows the counties that altogether sum the 80% of reduced lunches offer in the state of Washington. Of course, there is a propeo pareto plot for this cases:
+
+```{r, eval=FALSE}
+library(ggQC) # install this previously
+
+base4=ggplot(data=CountyCount_LR,
+             aes(x=County,y=Reduced.Lunch)) + theme_classic()
+pare1=base4 + stat_pareto() 
+pare1
+
+```
+
+That was fast. However, some extra work might be needed:
+
+```{r, eval=FALSE}
+# computing intercepts
+interX=length(counties80)
+interY=max(CountyCount_LR$Reduced.Lunch.Cum)*0.8
+
+# annotating intercepts
+pare2=pare1 + geom_vline(xintercept = interX,
+                         linetype="dashed", color='grey90') 
+pare2=pare2 + geom_hline(yintercept =interY,
+                         linetype="dashed", color='grey90') 
+pare2 + theme(axis.text.x = element_text(angle = 30, hjust = 1,face=ifelse(CountyCount_LR$County%in%counties80,"bold","plain")))
+```
+
+
+All these plots give us an idea of **distribution**: how lunches are distributed among counties. 

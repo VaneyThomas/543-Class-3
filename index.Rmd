@@ -1,0 +1,426 @@
+<br> 
+<center><img src="http://i.imgur.com/sSaOozN.png" width="500"></center>
+
+
+## Course: VISUAL ANALYTICS FOR POLICY AND MANAGEMENT
+
+### Prof. José Manuel Magallanes, PhD
+
+* Visiting Professor of Computational Policy at Evans School of Public Policy and Governance, and eScience Institute Senior Data Science Fellow, University of Washington.
+* Professor of Government and Political Methodology, Pontificia Universidad Católica del Perú. 
+
+
+_____
+<a id='TOC'></a>
+
+# Tabular data: Univariate Numerical
+
+_____
+
+1. [Counting](#part1)
+
+2. [Measuring](#part2)
+
+
+_____
+
+
+
+Let's load the data we used for the last session:
+
+```{r getData, eval=TRUE}
+# clean memory
+rm(list = ls()) 
+# link
+link='https://github.com/EvansDataScience/data/raw/master/eduwa.rda'
+
+#getting the data TABLE from the file in the cloud:
+load(file=url(link))
+```
+
+<a id='part1'></a>
+
+## Data from Counting
+
+Counting expresses numerical values. They could be represented with bar plots if their frequency table had few discrete values, but that is not generally the case. For example, the variable _Reduced.Lunch_ informs how many kids there are in each school that have that lunch for a reduced price. We have more than 2000 schools, so it is unlikely we find few different values. This is how many different values we have:
+
+```{r unique, eval=TRUE}
+# how many unique values
+length(unique(eduwa$Reduced.Lunch))
+```
+
+There are too many different values. Then, the bar plot is not a good idea (and neither a frequency table), as the bar plot produces a bar for _each_ unique value in the data, counting how many times this value appears. This is how a bar plot looks for this variable:
+
+```{r, eval=TRUE}
+lunchDF=as.data.frame(table(eduwa$Reduced.Lunch))
+names(lunchDF)=c("Reduced_Lunch_Beneficiaries","Count")
+
+library(ggplot2)
+base1=ggplot(data=lunchDF, aes(x=Reduced_Lunch_Beneficiaries,Count))
+bar1=base1+geom_bar(stat = "identity")
+bar1
+```
+
+Numerical data requires statistical exploration with some questions in mind:
+
+* What is the representative value? Generally the **mean**, or **median**. 
+
+* How good is the representative value? You need some measure of dispersion. For the mean you have the **standard deviation** and **coefficient of variation**, and for the median the **median absolute deviation**. 
+
+* Does the shape of the distribution differs from a _normal_ distribution? If there is **asymmetry**, is it large enough to show **outliers**? You need some  measure of symmetry and shape (a.k.a. _kurtosis_).
+
+
+First, let's take a look at the basic statistical information:
+
+```{r summary, eval=TRUE}
+summary(eduwa$Reduced.Lunch)
+```
+This information may give us a general idea on how the data on _reduced lunch_ is behaving, so we select the plot that highlights that behavior. Let me try a box plot:
+
+1. Keep all the _summary_ values but the count of NAs.
+
+```{r, eval=TRUE}
+(statVals=summary(eduwa$Reduced.Lunch,digits = 3)[1:6])
+```
+
+
+Let me put some of those values in the boxplot y-axis:
+
+```{r, eval=TRUE, warning=FALSE, message=FALSE}
+library(magrittr)
+# the summary values as vector
+statVals=statVals%>%as.vector() #notice '%>%'
+
+#plotting
+base= ggplot(eduwa,aes(y = Reduced.Lunch))  
+b1= base + geom_boxplot() 
+b1=b1 +coord_flip()
+b1=b1+ scale_y_continuous(breaks = statVals) #custom breaks
+b1
+```
+
+
+This boxp lot shows outliers on the right tail, that means there is theoretical upper limit or threshold different than the maximum value of the variable. I can get that threshold this way:
+
+1. Compute the interquartile range (difference between q3 and q1):
+
+```{r, eval=TRUE}
+(theIQR=IQR(eduwa$Reduced.Lunch,na.rm = T))
+```
+
+Then, you multiply the IQR by a factor (typically 1.5). That value is added to the third quartile and the result is the upper threshold (if there were a lower threshold you would substract):
+
+```{r, eval=TRUE}
+# the upper threshold
+(upperT=summary(eduwa$Reduced.Lunch)[[5]] + theIQR*1.5)
+```
+
+Knowing the upper threshold, I can compute the amount of outliers in the right tail:
+
+```{r, eval=TRUE}
+(numOutliers=sum(eduwa$Reduced.Lunch>upperT,na.rm = T))
+```
+
+I can annotate my boxplot with this value:
+
+```{r, eval=TRUE,warning=FALSE, message=FALSE}
+txtUpper=paste0('Threshold:',upperT)
+txtOut=paste0('#Outlying schools: ',numOutliers)
+
+b1_line = b1 + geom_hline(yintercept = upperT,
+                            color='red',
+                            linetype="dotted",
+                            size=2) 
+b1_upper_line=b1_line + annotate(geom = 'text',
+                                label=txtUpper,
+                                y = upperT+5,
+                                x=0.2,
+                                angle=90) # text angle
+
+b1_upper_line_out=b1_upper_line + annotate(geom = 'text',
+                                label=txtOut,
+                                y = upperT+60,
+                                x=0.1,
+                                angle=0)
+b1_upper_line_out
+```
+
+You can get rid of the vertical axis values:
+
+```{r, eval=TRUE,warning=FALSE, message=FALSE}
+b1_upper_line_out_noX=b1_upper_line_out + 
+                      theme(axis.text.y = element_blank(),
+                            axis.ticks.y = element_blank(),
+                            axis.title.y = element_blank())
+b1_upper_line_out_noX
+```
+
+Also, chanege text location in the horizontal:
+```{r}
+b1_upper_line_out_noX + theme(axis.text.x = element_text(angle = 60,
+                                                         size = 7,
+                                                         vjust = 0.5))
+```
+
+
+In general, numerical data are prone to have outliers in real life (it is not common to speak about outliers in ordinal data since they have few levels).
+
+
+
+The **summary** command can be supplemented with some measures of spread or dispersion:
+
+```{r, eval=TRUE}
+# standard deviation:
+sd(eduwa$Reduced.Lunch,na.rm = T)
+```
+
+```{r, eval=TRUE}
+# median absolute deviation:
+mad(eduwa$Reduced.Lunch,na.rm = T)
+```
+
+```{r, warning=FALSE}
+# coefficient of variation
+library(DescTools)
+CoefVar(eduwa$Reduced.Lunch,
+        na.rm = T,
+        unbiased=T,
+        conf.level = 0.95)
+```
+There are also measures of shape:
+
+```{r, eval=TRUE, message=FALSE}
+# asymmetry
+Skew(eduwa$Reduced.Lunch,
+     na.rm = T,
+     conf.level = 0.95,
+     ci.type = "bca",
+     R=2500)
+
+```
+
+```{r, eval=TRUE}
+# kurtosis
+Kurt(eduwa$Reduced.Lunch,
+     na.rm = T,conf.level = 0.95,
+     ci.type = "bca",R=2500)
+```
+And the confidence interval for the mean:
+
+```{r, eval=TRUE, message=FALSE}
+# confidence interval for the mean
+MeanCI(eduwa$Reduced.Lunch,
+     na.rm = T)
+```
+
+*What do we know right now?*
+
+1. The data is skewed, with a right tail.
+2. The data is concentrated in a small group of values.
+3. In this situation, the median is more informative than the mean.
+
+
+You can save those values for future annotations:
+
+```{r}
+cv=CoefVar(eduwa$Reduced.Lunch,na.rm = T)
+sd=SD(eduwa$Reduced.Lunch,na.rm = T)
+md=Median(eduwa$Reduced.Lunch,na.rm = T)
+mn=Mean(eduwa$Reduced.Lunch,na.rm = T)
+mn.low=MeanCI(eduwa$Reduced.Lunch,
+     na.rm = T)[['lwr.ci']]
+mn.up=MeanCI(eduwa$Reduced.Lunch,
+     na.rm = T)[['upr.ci']]
+sk=Skew(eduwa$Reduced.Lunch,
+     na.rm = T)
+```
+
+
+A key visual for numerical data is the **histogram**. The histogram looks like a bar plot. In both cases the height of the bars represent counts, but the bars in the histogram are consecutive while the bases of the bars are numeric intervals (**binwidth** informs the length of the intervals). Histograms mainly help you see clearly where and how many _peaks_ are there in the data distribution. Let's make one:
+
+```{r GGLikeBase,eval=TRUE,warning=FALSE, message=FALSE}
+#ggplot
+WIDTH=10
+library(ggplot2)
+base= ggplot(eduwa)  
+h1= base + geom_histogram(aes(x = Reduced.Lunch),
+                          binwidth = WIDTH,
+                          fill='black') 
+h1=h1 + labs(y="count")
+h1
+```
+
+Let's do some annotations:
+
+```{r, eval=TRUE,warning=FALSE, message=FALSE}
+# texts
+annMean=paste0('Mean:',round(mn))
+annSk=paste0('Skeness:',round(sk,2))
+
+# adding
+h1+ geom_vline(xintercept = mn,color='red') + # mean as line
+    annotate(geom = 'text',color='red',
+             label=annMean,
+              y = 400,
+              x=mn+5,
+              angle=90) + # mean as value
+    annotate(geom = 'text', color='blue',
+             label=annSk,
+              y = 50,
+              x=upperT+170,
+              angle=0) # skewness
+    
+```
+
+What else would you do?
+
+[Go to table of contents.](#TOC)
+
+<a id='part2'></a>
+
+### Measurement
+
+A simplistic idea of measurement tells you the times a particular unit is present in the unit of analysis; which allows for the presence of decimal places. There are variables that could even have negative values.
+
+Let's analyze the variable _Student.Teacher.Ratio_:
+
+```{r summaryMeans, eval=TRUE}
+summary(eduwa$Student.Teacher.Ratio)
+```
+
+Notice that the maximum value is very far from the mean and the median, this announces the presence of outliers, which can be revealed with a boxplot:
+
+```{r, eval=TRUE,warning=FALSE, message=FALSE}
+base=ggplot(eduwa) + theme_light()
+box2=base + geom_boxplot(aes(y=Student.Teacher.Ratio)) + 
+                      theme(axis.text.y = element_blank(),
+                            axis.ticks.y = element_blank(),
+                            axis.title.y = element_blank())
+box2=box2 + coord_flip()
+box2
+```
+
+Now, let's see if this is a multimodal distribution (more than one peak). Let's take a look at the histogram:
+
+
+```{r, warning=FALSE, message=FALSE}
+hist2=base + geom_histogram(aes(x=Student.Teacher.Ratio))
+hist2=hist2 + labs(y='count')
+hist2
+```
+
+You can recover the count of each bar in the histogram using **ggplot_built**:
+
+```{r, message=FALSE, warning=FALSE}
+ggplot_build(hist2)$data[[1]]%>%head()
+```
+
+We can recover some of that information:
+
+```{r, message=FALSE, warning=FALSE}
+(fromHist=ggplot_build(hist2)$data[[1]][,c('count','x','xmin','xmax')])
+```
+
+Here, I want to know the modal class:
+
+```{r}
+(modeClassInfo=round(fromHist[which.max(fromHist$count),],2))
+```
+
+Let me annotate:
+
+```{r, message=FALSE, warning=FALSE}
+# count for modal class
+ModeCountY=modeClassInfo$count
+# position of modal class 
+PositionCountX=modeClassInfo$x
+
+ModeMessage=paste0("<- Count of Modal Class [",
+                   modeClassInfo$xmin,' - ',
+                   modeClassInfo$xmax,']')
+
+hist2ann=hist2 + geom_hline(yintercept =ModeCountY,
+                   linetype="dotted") +
+    annotate(geom = 'text',
+             label=ModeCountY,
+              y = ModeCountY+40,
+              x=PositionCountX,
+             color='red',
+              angle=0) +
+    annotate(geom = 'text',
+             label=ModeMessage,
+              y = ModeCountY+40,
+              x=PositionCountX+90,
+             color='red',
+              angle=0)
+hist2ann
+
+```
+
+
+We know this variable has one peak, is highly skewed, and  has outliers at the top and the bottom values. We could try to combine all that in one visual:
+
+```{r,warning=FALSE, message=FALSE}
+library(ggpubr)
+ggarrange(hist2ann,box2,align='v',ncol = 1,heights = 2:1)
+
+```
+
+As you see, that is not an exact match. An alternative can be the **violin** plot.
+
+
+```{r, warning=FALSE}
+base=ggplot(eduwa, aes(x=0,y=Student.Teacher.Ratio))+
+            theme_classic()
+
+vio=base+geom_violin(trim=FALSE, fill="orange")
+
+viobox=vio+geom_boxplot(width=0.2)
+viobox=viobox + coord_flip()
+viobox 
+```
+
+We could inform the amount of outliers:
+
+```{r}
+theVar=eduwa$Student.Teacher.Ratio
+theIQR=IQR(theVar,na.rm = T)
+upperT=summary(theVar)[[5]] + theIQR*1.5
+lowerT=summary(theVar)[[2]] - theIQR*1.5
+
+# top
+(numOutUp=sum(eduwa$Student.Teacher.Ratio>upperT,na.rm = T))
+# bottom
+(numOutLw=sum(eduwa$Student.Teacher.Ratio<lowerT,na.rm = T))
+```
+
+We know there are 185 outliers (83 at the bottom values and 102 at the top). Let's annotate the plot with that information:
+
+
+```{r, warning=FALSE}
+# prepare texts:
+annOutUN=paste0(numOutUp,' schools\nabove ',upperT)
+annOutLN=paste0(numOutLw,' schools\nbelow ',lowerT)
+
+# plotting
+viobox=viobox  + labs(x='')
+viobox + annotate(geom = 'text',
+              label=annOutUN,
+              y = upperT+60,
+              x=0.1,
+              angle=0) + 
+         annotate(geom = 'text',
+              label=annOutLN,
+              y = lowerT,
+              x=0.5,
+              angle=0) + 
+        theme(axis.text.y = element_blank(), # no text on y
+              axis.ticks.y = element_blank(),# no ticks on y
+              axis.line.y = element_blank()) # no line on y
+```
+
+The violin plot will inform the presence of peaks, but not on the maximum value of the peak as the histogram shows.
+
+_____
+
+[Go to table of contents.](#TOC)

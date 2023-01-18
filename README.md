@@ -1,1 +1,2 @@
-# 543-Class-3
+# VAforPM_univariateNum
+Material on univariate plot for numerical data.
